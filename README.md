@@ -10,13 +10,19 @@ To obtain high exploration efficiency, LRAE adopts a large-region-aware explorat
 </p>
 
 
-**Video Link**: [Video on Youtube](https://youtu.be/xePDPZluLes)
+**Video Link**: [Video on Youtube](https://youtu.be/xePDPZluLes); [Video on Bilibili](https://www.bilibili.com/video/BV1g1SVYWEfw/?spm_id_from=333.999.0.0&vd_source=0e7c59dd804a18d9a9c201eafe9ac6e5)
 
 **Related Paper**: [Paper on IEEE](https://ieeexplore.ieee.org/document/10734213)
 
-Q. Bi, X. Zhang, S. Zhang, R. Wang, L. Li and J. Yuan, "LRAE: Large-Region-Aware Safe and Fast Autonomous Exploration of Ground Robots for Uneven Terrains," in IEEE Robotics and Automation Letters, doi: 10.1109/LRA.2024.3486229.
+Q. Bi, X. Zhang, S. Zhang, R. Wang, L. Li and J. Yuan, "LRAE: Large-Region-Aware Safe and Fast Autonomous Exploration of Ground Robots for Uneven Terrains," in IEEE Robotics and Automation Letters, vol. 9, no. 12, pp. 11186-11193.
 
 (If it is useful to you, please cite our paper and ⭐️ our code.)
+
+**Other Links**: [multi-robot exploration code CURE1](https://github.com/NKU-MobFly-Robotics/CURE1)
+
+**News**: 
+
+1. A simple guideline is provided for [Real-world Experiment using Fast-LIO and Livox-MID360](https://github.com/NKU-MobFly-Robotics/LRAE/issues/20)
 
 ## Prerequisites
 
@@ -34,7 +40,7 @@ ros-noetic-joint-state-controller* \
 ros-noetic-velocity-controllers* 
 ```
 
-2. In addition, we recommend that you download [gazebo_models](https://github.com/osrf/gazebo_models) to the directory `~/.gazebo/models`.
+2. In addition, we recommend that you download [gazebo_models](https://github.com/osrf/gazebo_models) and [Supplementary Gazebo Models for LRAE](https://github.com/qingchen-bi/Supplementary-Gazebo-Models-for-LRAE) to the directory `~/.gazebo/models`.
 
 ## Build LRAE
 Then simply clone and compile our package:
@@ -78,6 +84,7 @@ catkin_make
    ```bash
    sudo apt-get install ros-noetic-ros-controllers ros-noetic-ros-control
    ```
+5. **Some common issues can also be referred to on the "Issues" page.**
 
 ## Run LRAE in simulation
 
@@ -119,6 +126,73 @@ source devel/setup.bash && roslaunch lrae_planner exploration_scene2.launch
 ```
 
 For Scene 3 and Scene 4, the method is the same as above.
+
+## Run LRAE in other scenes
+Schematic diagram of some parameters:
+<div style="display: flex; justify-content: center; gap: 10px;">
+	<figure>
+  		<img src="image/os.png" style="zoom:10%;" />
+    </figure>
+</div>
+
+We assume that exploration problems have boundaries, otherwise, exploration will continue indefinitely.
+Therefore, you need first to define the exploration boundary for the robot according to the scene, then set the parameters of the `globalMapData` according to the exploration boundary to ensure that the range of the exploration boundary is within the range of the `globalMapData`.
+
+
+**Please follow the following steps:**
+
+Let the robot's initial position be the coordinate origin, the robot's orientation be the positive direction of the x-axis, and the y-axis follows the right-hand coordinate system, the range of the exploration boundary in this coordinate system should be within the range of `globalMapData` determined by the four parameters `map_w`, `map_h`, `mapinitox`, and `mapinitoy` in node “exploration_map_merge”:
+1. Add the following parameters to node “Traversibility_mapping”：
+```xml
+​<param name="use_ex_range" value="true"/>
+<param name="ex_robot_back" value="-10.0"/>
+​<param name="ex_robot_right" value="-10.0"/>
+​<param name="ex_robot_front" value="50.0"/>
+​<param name="ex_robot_left" value="50.0"/>
+```
+2. Modify the following parameters of the `globalMapData` in node “exploration_map_merge”：
+```xml
+​<param name="map_w" type="int" value="200" />
+​<param name="map_h" type="int" value="200" />
+​<param name="mapinitox" type="double" value="-10.0" />
+​<param name="mapinitoy" type="double" value="-10.0" />
+```
+3. The conditions that need to be met between parameters:
+	1. ​If it is necessary to define the exploration boundary, `use_ex_range` is true; otherwise, it is false;
+	2. ​`ex_robot_front` represents the farthest distance that can be explored along the positive x-axis；
+	3. ​`ex_robot_back` represents the farthest distance that can be explored along the negative x-axis；
+	4. ​`ex_robot_left` represents the farthest distance that can be explored along the positive y-axis;
+	5. ​`ex_robot_right` represents the farthest distance that can be explored along the negative y-axis;
+	6. ​`map_w` is greater than or equal to ((`ex_robot_front` + abs(`ex_robot_back`)) / map resolution) then **round up**         
+	7. ​`map_h` is greater than or equal to ((`ex_robot_left` + abs(`ex_robot_right`)) / map resolution) then **round up**;
+	8. ​note: map resolution has been set to 0.3 in this code repository；
+	9. ​`mapinitox` is less than or equal to `ex_robot_back`;
+	10. ​`mapinitoy` is less than or equal to `ex_robot_right`;
+	11. ​In conclusion, the exploration boundary range defined by the “Traversibility_mapping” node must be entirely within the range of the `globalMapData` determined by the “exploration_map_merge” node.
+
+## Main Parameters
+Main parameters affecting terrain traversability analysis:
+```C++
+float max_angle_ = 40.0;
+float max_flatness_ = 0.01;
+float w1_ = 0.8;
+```
+Main parameters affecting exploration performance:
+```xml
+<param name="angle_pen" type="double" value ="0.45" />
+<param name="update_cen_thre" type="int" value="6" />
+<param name="unknown_num_thre" type="int" value ="200" />
+<param name="minrange" type="double" value="20.0" />
+<param name="limit_max_square" type="bool" value ="true" />
+<param name="use_go_end_nearest" type="bool" value="true" />
+<param name="end_neacen_disthre" type="double" value ="10.0" />
+<param name="end_cur_disrate" type="double" value="2.0" />
+```
+## Remark
+1. If the robot ends up exploring some tiny unknown regions back and forth, please increase the `unknown_num_thre` parameter appropriately. 
+2. Since the Real Time Factor in Gazebo is not always equal to 1, please use the ros::Time class to measure the exploration time instead of using the actual wall-clock time.
+3. The exploration performance depends on the accuracy of traversability analysis and localization. If the exploration is incomplete, please ensure accurate localization and adjust the traversability analysis parameters to suit the corresponding terrain. (The algorithm is mainly designed for continuous undulating rough terrain and has not been tested on discrete terrains such as cliffs or steps.) It is recommended to first check whether the traversability map is constructed correctly.
+
 ## Acknowledgements
 
 We sincerely appreciate the following open source projects: [FAEL](https://github.com/SYSU-RoboticsLab/FAEL), [TARE](https://github.com/caochao39/tare_planner), [PUTN](https://github.com/jianzhuozhuTHU/putn), and Ji Zhang's [local_planner](https://github.com/jizhang-cmu/ground_based_autonomy_basic/tree/noetic/src/local_planner).
